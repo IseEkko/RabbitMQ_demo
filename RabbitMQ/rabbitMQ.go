@@ -6,6 +6,7 @@ import (
 	"log"
 )
 
+//这里参数：amqp://用户:密码@rabbitmq地址:端口号/host
 const MQURL = "amqp://immocuser:immocuser@127.0.0.1:5672/imooc"
 
 type RabbitMQ struct {
@@ -92,7 +93,7 @@ func (r *RabbitMQ) PublishSimple(message string) {
 		})
 }
 
-func (r *RabbitMQ) consumeSimple() {
+func (r *RabbitMQ) ConsumeSimple() {
 	//1. 申请队列，如果队列不存在会自动创建，如果存在则跳过创建过程
 	//保证队列存在，消息能发送到队列中
 	_, err := r.channel.QueueDeclare(
@@ -138,6 +139,6 @@ func (r *RabbitMQ) consumeSimple() {
 			fmt.Println(d.Body)
 		}
 	}()
-	log.Printf("[*]watting for message ,To exit press CTRL + C")
+	log.Println("[*]watting for message ,To exit press CTRL + C")
 	<-forever
 }
