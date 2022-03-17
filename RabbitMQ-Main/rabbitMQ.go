@@ -237,3 +237,89 @@ func (r *RabbitMQ) RecieveSub() {
 	fmt.Println("推出请按 CTRL + C")
 	<-forever
 }
+
+/**
+路由模式
+*/
+/**
+路由模式创建实例
+*/
+func NewRabbitMQRouting(exchange string, routingKey string) *RabbitMQ {
+	rabbitmq := NewRabbitMQ("", exchange, routingKey)
+	var err error
+	rabbitmq.conn, err = amqp.Dial(rabbitmq.Mqurl)
+	rabbitmq.failOnerr(err, "Faile to connect rabbitmq!")
+	rabbitmq.channel, err = rabbitmq.conn.Channel()
+	rabbitmq.failOnerr(err, "failed to open a channel")
+	return rabbitmq
+}
+
+//路由模式发送消息
+func (r *RabbitMQ) PublishRouting(message string) {
+	//尝试创建交换机
+	err := r.channel.ExchangeDeclare(
+		r.Exchange,
+		//注意这里需要改的名称
+		"direct",
+		true,
+		false,
+		false,
+		false,
+		nil,
+	)
+	r.failOnerr(err, "Failed to declare an exchange")
+	//2.发送消息
+	err = r.channel.Publish(
+		r.Exchange,
+		r.Key,
+		false,
+		false,
+		amqp.Publishing{
+			ContentType: "text/plain",
+			Body:        []byte(message),
+		})
+}
+
+//路由模式接受消息
+func (r *RabbitMQ) RecieveRouting() {
+	//1.试探性的创建交换机
+	err := r.channel.ExchangeDeclare(
+		r.Exchange,
+		"direct",
+		true,
+		false,
+		false,
+		false,
+		nil)
+	r.failOnerr(err, "Failed to declare an excahnge")
+	//2.试探性创建队列，这里注意队列的名称不要写
+	q, err := r.channel.QueueDeclare(
+		"",
+		false,
+		false,
+		true,
+		false,
+		nil)
+	err = r.channel.QueueBind(
+		q.Name,
+		r.Key,
+		r.Exchange,
+		false,
+		nil)
+	message, err := r.channel.Consume(
+		q.Name,
+		"",
+		true,
+		false,
+		false,
+		false,
+		nil)
+	forever := make(chan bool)
+	go func() {
+		for d := range message {
+			log.Printf("Received a message:%s", d.Body)
+		}
+	}()
+	fmt.Println("退出请按CTRL+C")
+	<-forever
+}
