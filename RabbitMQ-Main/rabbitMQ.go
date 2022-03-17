@@ -1,4 +1,4 @@
-package RabbitMQ
+package RabbitMQ_Main
 
 import (
 	"fmt"
@@ -140,5 +140,100 @@ func (r *RabbitMQ) ConsumeSimple() {
 		}
 	}()
 	log.Println("[*]watting for message ,To exit press CTRL + C")
+	<-forever
+}
+
+//订阅模式创建RabbitMQ实例
+func NewRabbitMQPubSub(exchangeName string) *RabbitMQ {
+	//创建RabbitMQ实例
+	rabbitmq := NewRabbitMQ("", exchangeName, "")
+	var err error
+	//获取conntion连接
+	rabbitmq.conn, err = amqp.Dial(rabbitmq.Mqurl)
+	rabbitmq.failOnerr(err, "failed to connect rabbitmq!")
+	//获取channel
+	rabbitmq.channel, err = rabbitmq.conn.Channel()
+	rabbitmq.failOnerr(err, "failed to open a channel")
+	return rabbitmq
+}
+
+//订阅模式生产
+func (r *RabbitMQ) PublishPub(message string) {
+	//尝试创建交换机
+	err := r.channel.ExchangeDeclare(
+		//
+		r.Exchange,
+		//交换机的类型，这里是广播的类型
+		"fanout",
+		true,
+		false,
+		false,
+		false,
+		nil,
+	)
+	r.failOnerr(err, "Failed to declare an excahnge!")
+	err = r.channel.Publish(
+		r.Exchange,
+		"",
+		false,
+		false,
+		amqp.Publishing{
+			ContentType: "text/plain",
+			Body:        []byte(message),
+		})
+}
+
+//订阅模式消费端代码
+func (r *RabbitMQ) RecieveSub() {
+	//试探性创建交换机
+	err := r.channel.ExchangeDeclare(
+		//
+		r.Exchange,
+		//交换机的类型，这里是广播的类型
+		"fanout",
+		true,
+		false,
+		false,
+		false,
+		nil,
+	)
+	r.failOnerr(err, "Failed to declare an excahnge!")
+	q, err := r.channel.QueueDeclare(
+		"",
+		false,
+		false,
+		//排他性
+		true,
+		false,
+		nil)
+	r.failOnerr(err, "Failed to declare a queue")
+
+	//绑定队列到exchange中
+	err = r.channel.QueueBind(
+		//因为这个名字是随机生产的所以这样来取名称/
+		q.Name,
+		"",
+		r.Exchange,
+		false,
+		nil,
+	)
+
+	//消息消费
+	message, err := r.channel.Consume(
+		q.Name,
+		"",
+		true,
+		false,
+		false,
+		false,
+		nil,
+	)
+	forever := make(chan bool)
+	go func() {
+		for d := range message {
+			log.Printf("Received a message:%s", d.Body)
+		}
+	}()
+	fmt.Println("推出请按 CTRL + C")
 	<-forever
 }
