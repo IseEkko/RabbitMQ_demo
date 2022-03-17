@@ -53,6 +53,10 @@ func (r *RabbitMQ) failOnerr(err error, message string) {
 }
 
 /**
+简单模式：
+  最基础的模式。也就是一个消费者一个生产者，通过一个通道进行消息的发送和接收
+*/
+/**
 创建简单模式的rabbitmq实例
 */
 func NewRabbitMQSimple(queueName string) *RabbitMQ {
@@ -92,7 +96,6 @@ func (r *RabbitMQ) PublishSimple(message string) {
 			Body:        []byte(message),
 		})
 }
-
 func (r *RabbitMQ) ConsumeSimple() {
 	//1. 申请队列，如果队列不存在会自动创建，如果存在则跳过创建过程
 	//保证队列存在，消息能发送到队列中
@@ -143,6 +146,10 @@ func (r *RabbitMQ) ConsumeSimple() {
 	<-forever
 }
 
+/**
+订阅者模式：
+   订阅者模式，是一个消息被多个消费者消费。这就是订阅者模式
+*/
 //订阅模式创建RabbitMQ实例
 func NewRabbitMQPubSub(exchangeName string) *RabbitMQ {
 	//创建RabbitMQ实例
@@ -239,7 +246,8 @@ func (r *RabbitMQ) RecieveSub() {
 }
 
 /**
-路由模式
+路由模式、
+  消息指定的发送给消费者。
 */
 /**
 路由模式创建实例
@@ -286,6 +294,89 @@ func (r *RabbitMQ) RecieveRouting() {
 	err := r.channel.ExchangeDeclare(
 		r.Exchange,
 		"direct",
+		true,
+		false,
+		false,
+		false,
+		nil)
+	r.failOnerr(err, "Failed to declare an excahnge")
+	//2.试探性创建队列，这里注意队列的名称不要写
+	q, err := r.channel.QueueDeclare(
+		"",
+		false,
+		false,
+		true,
+		false,
+		nil)
+	err = r.channel.QueueBind(
+		q.Name,
+		r.Key,
+		r.Exchange,
+		false,
+		nil)
+	message, err := r.channel.Consume(
+		q.Name,
+		"",
+		true,
+		false,
+		false,
+		false,
+		nil)
+	forever := make(chan bool)
+	go func() {
+		for d := range message {
+			log.Printf("Received a message:%s", d.Body)
+		}
+	}()
+	fmt.Println("退出请按CTRL+C")
+	<-forever
+}
+
+/**
+话题模式
+*/
+//创建RabbitMQ实例
+func NewRabiitMQTopic(exchange string, routingKey string) *RabbitMQ {
+	//创建RabbitMQ实例
+	rabbitmq := NewRabbitMQ("", exchange, routingKey)
+	var err error
+	//获取连接
+	rabbitmq.conn, err = amqp.Dial(rabbitmq.Mqurl)
+	rabbitmq.failOnerr(err, "Failed to connect rabbitmq!")
+	//获取channel
+	rabbitmq.channel, err = rabbitmq.conn.Channel()
+	rabbitmq.failOnerr(err, "Failed to open a channel")
+	return rabbitmq
+}
+
+//话题模式发送消息
+func (r *RabbitMQ) PublishTopic(message string) {
+	err := r.channel.ExchangeDeclare(
+		r.Exchange,
+		"topic",
+		true,
+		false,
+		false,
+		false,
+		nil)
+	r.failOnerr(err, "Failed to declatre an exchange")
+	//发送消息
+	err = r.channel.Publish(
+		r.Exchange,
+		r.Key,
+		false,
+		false,
+		amqp.Publishing{
+			ContentType: "text/plain",
+			Body:        []byte(message),
+		})
+}
+
+//话题模式下的接收消息
+func (r *RabbitMQ) RecieveTopic() {
+	err := r.channel.ExchangeDeclare(
+		r.Exchange,
+		"topic",
 		true,
 		false,
 		false,
