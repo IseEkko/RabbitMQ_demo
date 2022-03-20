@@ -11,6 +11,7 @@ func main() {
 	app.RegisterView(iris.HTML("./web/view", ".html"))
 	//注册控制器
 	mvc.New(app.Party("/hello")).Handle(new(controller.MovieController))
+	mvc.New(app.Party("stu")).Handle(new(controller.StudentController))
 	app.Run(
 		iris.Addr("localhost:8080"),
 	)

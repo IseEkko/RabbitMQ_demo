@@ -1,6 +1,8 @@
 package repositories
 
-import "Iris_study/datamodels"
+import (
+	"Iris_study/datamodels"
+)
 
 type MoviesReponsitory interface {
 	GetMovieName() string
